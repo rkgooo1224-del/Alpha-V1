@@ -235,12 +235,18 @@ function updatePlayer() {
 
     if (player.dead) return;
 
-    player.x +=
-        joyX * player.speed;
+    
+const nx =
+    player.x + joyX * player.speed;
 
-    player.y +=
-        joyY * player.speed;
+const ny =
+    player.y + joyY * player.speed;
 
+if (!treeCollision(nx, player.y))
+    player.x = nx;
+
+if (!treeCollision(player.x, ny))
+    player.y = ny;
     player.x = Math.max(
         30,
         Math.min(
@@ -278,6 +284,7 @@ function attack() {
         return;
 
     player.attackCooldown = 350;
+    swordSwing = 180;
 
     if (!hell.alive) return;
 
@@ -732,19 +739,460 @@ function updateHUD() {
     updateParticles();
     updateEffects();
     updateCamera();
-
+    updateWalkAnimation();
+    updateHellFire();
+    
+    betterGrass();
+    updateSwordSwing();
+    drawSwordSwing();
+    betterhills();
+    betterTrees();
+    betterRocks();
     drawWorld();
     drawMeat();
-    drawPlayer();
-    drawHell();
+    drawSword();
+    betterPlayer();
+    betterCharacters();
+    betterHell();
     drawHellHealth();
     drawParticles();
-
+    drawHellFire();
+   
     updateHUD();
-
+ 
     requestAnimationFrame(
         gameLoop
     );
 }
 
 gameLoop();
+function betterGrass() {
+
+    ctx.fillStyle = "#5c963f";
+    ctx.fillRect(0, 0, W, H);
+
+    for (let i = 0; i < 350; i++) {
+
+        const x =
+            (i * 97 - camera.x * 0.8)
+            % (W + 40);
+
+        const y =
+            (i * 53 - camera.y * 0.8)
+            % (H + 40);
+
+        ctx.strokeStyle =
+            "rgba(35,80,25,.35)";
+
+        ctx.lineWidth = 1;
+
+        ctx.beginPath();
+
+        ctx.moveTo(x, y);
+        ctx.lineTo(x + 3, y - 7);
+
+        ctx.stroke();
+    }
+}function betterTrees() {
+
+    for (const t of trees) {
+
+        const x = t.x - camera.x;
+        const y = t.y - camera.y;
+
+        ctx.fillStyle = "rgba(0,0,0,.25)";
+        ctx.beginPath();
+        ctx.ellipse(
+            x, y + 18,
+            t.size, 8,
+            0, 0, Math.PI * 2
+        );
+        ctx.fill();
+
+        ctx.fillStyle = "#70452a";
+        ctx.fillRect(
+            x - 7, y - 5,
+            14, 30
+        );
+
+        ctx.fillStyle = "#245f2d";
+        ctx.beginPath();
+        ctx.arc(
+            x, y - 18,
+            t.size,
+            0, Math.PI * 2
+        );
+        ctx.fill();
+
+        ctx.fillStyle = "#39803b";
+        ctx.beginPath();
+        ctx.arc(
+            x - 8, y - 27,
+            t.size * .65,
+            0, Math.PI * 2
+        );
+        ctx.fill();
+    }
+}
+
+
+/* TREE COLLISION */
+
+function treeCollision(x, y) {
+
+    for (const t of trees) {
+
+        const dx = x - t.x;
+        const dy = y - t.y;
+
+        const distance =
+            Math.hypot(dx, dy);
+
+        if (distance < t.size + player.radius)
+            return true;
+    }
+
+    return false;
+}function betterRocks() {
+
+    for (const r of rocks) {
+
+        const x = r.x - camera.x;
+        const y = r.y - camera.y;
+
+        // Shadow
+        ctx.fillStyle = "rgba(0,0,0,.22)";
+        ctx.beginPath();
+        ctx.ellipse(
+            x + 3, y + 5,
+            r.size, r.size * .45,
+            0, 0, Math.PI * 2
+        );
+        ctx.fill();
+
+        // Rock
+        ctx.fillStyle = "#626262";
+        ctx.beginPath();
+        ctx.ellipse(
+            x, y,
+            r.size,
+            r.size * .7,
+            -.15,
+            0, Math.PI * 2
+        );
+        ctx.fill();
+
+        // Highlight
+        ctx.fillStyle = "#888";
+        ctx.beginPath();
+        ctx.ellipse(
+            x - r.size * .3,
+            y - r.size * .25,
+            r.size * .35,
+            r.size * .18,
+            -.2,
+            0, Math.PI * 2
+        );
+        ctx.fill();
+    }
+}function drawHellFire() {
+
+    for (const p of hellFire) {
+
+        ctx.globalAlpha = p.life;
+
+        ctx.fillStyle = "#ff6a00";
+
+        ctx.beginPath();
+
+        ctx.arc(
+            p.x - camera.x,
+            p.y - camera.y,
+            p.size,
+            0,
+            Math.PI * 2
+        );
+
+        ctx.fill();
+    }
+
+    ctx.globalAlpha = 1;
+}const hellFire = [];
+
+function createHellFire() {
+
+    if (!hell.alive) return;
+
+    hellFire.push({
+        x: hell.x + random(-20, 20),
+        y: hell.y + random(-18, 20),
+        vx: random(-.4, .4),
+        vy: random(-1.5, -.5),
+        life: 1,
+        size: random(3, 7)
+    });
+}
+
+function updateHellFire() {
+
+    createHellFire();
+
+    for (let i = hellFire.length - 1; i >= 0; i--) {
+
+        const p = hellFire[i];
+
+        p.x += p.vx;
+        p.y += p.vy;
+        p.life -= .035;
+
+        if (p.life <= 0)
+            hellFire.splice(i, 1);
+    }
+}function betterPlayer() {
+
+    let x = player.x - camera.x;
+    let y = player.y - camera.y;
+
+    // Shadow
+    ctx.fillStyle = "rgba(0,0,0,.25)";
+    ctx.beginPath();
+    ctx.ellipse(
+        x, y + 22,
+        20, 7,
+        0, 0, Math.PI * 2
+    );
+    ctx.fill();
+
+    // Legs
+    ctx.fillStyle = "#202638";
+    ctx.fillRect(x - 11, y + 8, 8, 17);
+    ctx.fillRect(x + 3, y + 8, 8, 17);
+
+    // Body
+    ctx.fillStyle =
+        player.flash > 0
+        ? "white" : "#245fc7";
+
+    ctx.beginPath();
+    ctx.roundRect(
+        x - 16, y - 5,
+        32, 25, 7
+    );
+    ctx.fill();
+
+    // Head
+    ctx.fillStyle = "#e8aa7d";
+    ctx.beginPath();
+    ctx.arc(
+        x, y - 17,
+        13,
+        0, Math.PI * 2
+    );
+    ctx.fill();
+
+    // Hair
+    ctx.fillStyle = "#171717";
+    ctx.beginPath();
+    ctx.arc(
+        x, y - 22,
+        13,
+        Math.PI,
+        Math.PI * 2
+    );
+    ctx.fill();
+
+    // Eyes
+    ctx.fillStyle = "#111";
+    ctx.fillRect(x - 6, y - 18, 3, 3);
+    ctx.fillRect(x + 3, y - 18, 3, 3);
+        }const legMove =
+    Math.sin(walkTime) * 5;
+
+ctx.fillStyle = "#202638";
+
+ctx.save();
+
+ctx.translate(
+    x - 7,
+    y + 10
+);
+
+ctx.rotate(
+    legMove * Math.PI / 180
+);
+
+ctx.fillRect(
+    -4, 0,
+    8, 17
+);
+
+ctx.restore();
+
+ctx.save();
+
+ctx.translate(
+    x + 7,
+    y + 10
+);
+
+ctx.rotate(
+    -legMove * Math.PI / 180
+);
+
+ctx.fillRect(
+    -4, 0,
+    8, 17
+);
+
+ctx.restore();
+function drawSword() {
+
+    const x = player.x - camera.x;
+    const y = player.y - camera.y;
+
+    let dx = joyX;
+    let dy = joyY;
+
+    if (Math.hypot(dx, dy) < 0.1) {
+        dx = 1;
+        dy = 0;
+    }
+
+    const angle = Math.atan2(dy, dx);
+
+    ctx.save();
+
+    ctx.translate(x, y);
+    ctx.rotate(angle);
+
+    /* Handle */
+
+    ctx.fillStyle = "#633b20";
+    ctx.fillRect(13, -3, 16, 6);
+
+    /* Guard */
+
+    ctx.fillStyle = "#d6b24c";
+    ctx.fillRect(10, -7, 5, 14);
+
+    /* Blade */
+
+    ctx.fillStyle =
+        player.flash > 0
+        ? "white" : "#dce5ee";
+
+    ctx.beginPath();
+
+    ctx.moveTo(14, -5);
+    ctx.lineTo(48, 0);
+    ctx.lineTo(14, 5);
+
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.restore();
+}let swordSwing = 0;
+
+function updateSwordSwing() {
+
+    if (swordSwing > 0)
+        swordSwing -= 16;
+}
+
+function drawSwordSwing() {
+
+    if (swordSwing <= 0) return;
+
+    const x = player.x - camera.x;
+    const y = player.y - camera.y;
+
+    const angle =
+        Math.atan2(joyY, joyX);
+
+    const progress =
+        1 - swordSwing / 180;
+
+    const swing =
+        -1.2 + progress * 2.4;
+
+    ctx.save();
+
+    ctx.translate(x, y);
+    ctx.rotate(angle + swing);
+
+    ctx.strokeStyle =
+        "rgba(220,240,255,.8)";
+
+    ctx.lineWidth = 5;
+
+    ctx.beginPath();
+    ctx.moveTo(15, 0);
+    ctx.lineTo(60, 0);
+    ctx.stroke();
+
+    ctx.restore();
+}function drawHitParticles() {
+
+    for (const p of hitParticles) {
+
+        ctx.globalAlpha = p.life;
+        ctx.fillStyle = "#ffd34d";
+
+        ctx.beginPath();
+
+        ctx.arc(
+            p.x - camera.x,
+            p.y - camera.y,
+            p.size,
+            0,
+            Math.PI * 2
+        );
+
+        ctx.fill();
+    }
+
+    ctx.globalAlpha = 1;
+}const hitParticles = [];
+
+function createHitImpact(x, y) {
+
+    for (let i = 0; i < 8; i++) {
+
+        const angle =
+            random(0, Math.PI * 2);
+
+        const speed =
+            random(1.5, 4);
+
+        hitParticles.push({
+            x: x,
+            y: y,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed,
+            life: 1,
+            size: random(2, 5)
+        });
+    }
+}
+
+function updateHitParticles() {
+
+    for (
+        let i = hitParticles.length - 1;
+        i >= 0;
+        i--
+    ) {
+        const p = hitParticles[i];
+
+        p.x += p.vx;
+        p.y += p.vy;
+
+        p.vx *= .94;
+        p.vy *= .94;
+
+        p.life -= .06;
+
+        if (p.life <= 0)
+            hitParticles.splice(i, 1);
+    }
+}
