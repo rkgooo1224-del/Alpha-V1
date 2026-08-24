@@ -1,0 +1,2463 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+
+<meta name="viewport"
+      content="width=device-width,
+      initial-scale=1.0,
+      maximum-scale=1.0,
+      user-scalable=no">
+
+<title>Tier 1 Hell - 2D Prototype</title>
+
+<style>
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-tap-highlight-color: transparent;
+}
+
+html,
+body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: #111;
+    touch-action: none;
+    font-family: Arial, sans-serif;
+}
+
+#gameCanvas {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+}
+
+/* ================= HUD ================= */
+
+#hud {
+    position: fixed;
+    top: 15px;
+    left: 15px;
+    z-index: 10;
+    pointer-events: none;
+}
+
+.hp-box {
+    width: 155px;
+    height: 22px;
+    background: rgba(0,0,0,.55);
+    border: 2px solid white;
+    border-radius: 7px;
+    overflow: hidden;
+}
+
+#playerHPBar {
+    width: 100%;
+    height: 100%;
+    background: #e53935;
+    transition: width .12s linear;
+}
+
+#playerHPText {
+    margin-top: 4px;
+    color: white;
+    font-size: 13px;
+    font-weight: bold;
+    text-shadow: 1px 1px 3px black;
+}
+
+/* ================= MESSAGE ================= */
+
+#message {
+    position: fixed;
+    top: 15px;
+    right: 15px;
+    z-index: 10;
+
+    color: white;
+    font-size: 12px;
+
+    background: rgba(0,0,0,.45);
+    padding: 8px 10px;
+
+    border-radius: 8px;
+
+    pointer-events: none;
+}
+
+/* ================= JOYSTICK ================= */
+
+#joystick {
+    position: fixed;
+
+    left: 25px;
+    bottom: 28px;
+
+    width: 125px;
+    height: 125px;
+
+    border-radius: 50%;
+
+    background: rgba(255,255,255,.12);
+
+    border: 3px solid rgba(255,255,255,.3);
+
+    z-index: 20;
+}
+
+#stick {
+    position: absolute;
+
+    width: 58px;
+    height: 58px;
+
+    left: 50%;
+    top: 50%;
+
+    margin-left: -29px;
+    margin-top: -29px;
+
+    border-radius: 50%;
+
+    background: rgba(255,255,255,.45);
+
+    border: 2px solid rgba(255,255,255,.7);
+}
+
+/* ================= ATTACK ================= */
+
+#attackButton {
+    position: fixed;
+
+    right: 30px;
+    bottom: 35px;
+
+    width: 88px;
+    height: 88px;
+
+    border-radius: 50%;
+
+    border: 4px solid rgba(255,255,255,.75);
+
+    background: rgba(180,30,30,.78);
+
+    color: white;
+
+    font-size: 34px;
+
+    display: flex;
+    justify-content: center;
+    align-items: center;
+
+    z-index: 20;
+
+    box-shadow:
+        0 5px 15px rgba(0,0,0,.4);
+}
+
+#attackButton.pressed {
+    transform: scale(.9);
+    background: rgba(240,50,50,.95);
+}
+
+/* ================= GAME OVER ================= */
+
+#gameOver {
+    position: fixed;
+    inset: 0;
+
+    z-index: 50;
+
+    display: none;
+
+    justify-content: center;
+    align-items: center;
+
+    flex-direction: column;
+
+    background: rgba(0,0,0,.72);
+
+    color: white;
+
+    text-align: center;
+}
+
+#gameOver h1 {
+    font-size: 42px;
+    margin-bottom: 10px;
+}
+
+#gameOver p {
+    font-size: 16px;
+}
+
+/* ================= VICTORY ================= */
+
+#victory {
+    position: fixed;
+    left: 50%;
+    top: 45%;
+
+    transform: translate(-50%, -50%);
+
+    z-index: 30;
+
+    color: white;
+
+    font-size: 28px;
+    font-weight: bold;
+
+    text-shadow:
+        2px 2px 5px black;
+
+    display: none;
+
+    pointer-events: none;
+}
+
+</style>
+</head>
+
+<body>
+
+<canvas id="gameCanvas"></canvas>
+
+<!-- HUD -->
+
+<div id="hud">
+
+    <div class="hp-box">
+        <div id="playerHPBar"></div>
+    </div>
+
+    <div id="playerHPText">
+        HP: 100 / 100
+    </div>
+
+</div>
+
+<div id="message">
+    Tier 1 Hell nearby...
+</div>
+
+<!-- MOBILE JOYSTICK -->
+
+<div id="joystick">
+    <div id="stick"></div>
+</div>
+
+<!-- ATTACK BUTTON -->
+
+<div id="attackButton">
+    ⚔️
+</div>
+
+<!-- VICTORY -->
+
+<div id="victory">
+    HELL DEFEATED!
+</div>
+
+<!-- GAME OVER -->
+
+<div id="gameOver">
+
+    <h1>You Died</h1>
+
+    <p>
+        Refresh the page to try again.
+    </p>
+
+</div>
+
+<script>
+
+/* =========================================================
+   CANVAS
+========================================================= */
+
+const canvas =
+    document.getElementById("gameCanvas");
+
+const ctx =
+    canvas.getContext("2d");
+
+let W = window.innerWidth;
+let H = window.innerHeight;
+
+let DPR =
+    Math.min(window.devicePixelRatio || 1, 2);
+
+
+function resizeCanvas() {
+
+    W = window.innerWidth;
+    H = window.innerHeight;
+
+    DPR =
+        Math.min(window.devicePixelRatio || 1, 2);
+
+    canvas.width =
+        W * DPR;
+
+    canvas.height =
+        H * DPR;
+
+    canvas.style.width =
+        W + "px";
+
+    canvas.style.height =
+        H + "px";
+
+    ctx.setTransform(
+        DPR,
+        0,
+        0,
+        DPR,
+        0,
+        0
+    );
+}
+
+
+resizeCanvas();
+
+
+window.addEventListener(
+    "resize",
+    resizeCanvas
+);
+
+
+/* =========================================================
+   WORLD
+========================================================= */
+
+const WORLD_WIDTH = 3000;
+const WORLD_HEIGHT = 3000;
+
+
+/* =========================================================
+   CAMERA
+========================================================= */
+
+const camera = {
+
+    x: 0,
+    y: 0
+
+};
+
+
+/* =========================================================
+   PLAYER
+========================================================= */
+
+const player = {
+
+    x: 1500,
+    y: 1500,
+
+    radius: 20,
+
+    speed: 3.2,
+
+    hp: 100,
+    maxHp: 100,
+
+    damage: 1,
+
+    attackRange: 78,
+
+    attackCooldown: 0,
+
+    flash: 0,
+
+    shake: 0,
+
+    dead: false
+
+};
+
+
+/* =========================================================
+   TIER 1 HELL
+========================================================= */
+
+const hell = {
+
+    x: 1760,
+    y: 1500,
+
+    radius: 29,
+
+    /*
+       Hell is faster than player
+    */
+
+    speed: 4.1,
+
+    hp: 20,
+
+    maxHp: 20,
+
+    damage: 5,
+
+    attackRange: 48,
+
+    attackCooldown: 0,
+
+    alive: true,
+
+    flash: 0,
+
+    shake: 0
+
+};
+
+
+/* =========================================================
+   WORLD OBJECT ARRAYS
+========================================================= */
+
+const trees = [];
+const rocks = [];
+const hills = [];
+const meatDrops = [];
+const particles = [];
+
+
+/* =========================================================
+   RANDOM
+========================================================= */
+
+function random(min, max) {
+
+    return Math.random() *
+        (max - min) + min;
+
+}
+
+
+/* =========================================================
+   CREATE TREES
+========================================================= */
+
+for (let i = 0; i < 75; i++) {
+
+    trees.push({
+
+        x: random(
+            80,
+            WORLD_WIDTH - 80
+        ),
+
+        y: random(
+            80,
+            WORLD_HEIGHT - 80
+        ),
+
+        size: random(
+            23,
+            38
+        )
+
+    });
+
+}
+
+
+/* =========================================================
+   CREATE ROCKS
+========================================================= */
+
+for (let i = 55; i--;) {
+
+    rocks.push({
+
+        x: random(
+            70,
+            WORLD_WIDTH - 70
+        ),
+
+        y: random(
+            70,
+            WORLD_HEIGHT - 70
+        ),
+
+        size: random(
+            10,
+            22
+        )
+
+    });
+
+}
+
+
+/* =========================================================
+   CREATE HILLS
+========================================================= */
+
+for (let i = 18; i--;) {
+
+    hills.push({
+
+        x: random(
+            150,
+            WORLD_WIDTH - 150
+        ),
+
+        y: random(
+            150,
+            WORLD_HEIGHT - 150
+        ),
+
+        width: random(
+            180,
+            360
+        ),
+
+        height: random(
+            100,
+            220
+        )
+
+    });
+
+}
+
+
+/* =========================================================
+   PARTICLES
+========================================================= */
+
+function damageParticle(
+    x,
+    y,
+    amount
+) {
+
+    particles.push({
+
+        x:
+            x + random(-8, 8),
+
+        y:
+            y - 20,
+
+        text:
+            "-" + amount,
+
+        life: 1,
+
+        velocityY: -1.4
+
+    });
+
+}
+
+
+function updateParticles() {
+
+    for (
+        let i = particles.length - 1;
+        i >= 0;
+        i--
+    ) {
+
+        const p =
+            particles[i];
+
+        p.y +=
+            p.velocityY;
+
+        p.life -=
+            0.025;
+
+        if (p.life <= 0) {
+
+            particles.splice(
+                i,
+                1
+            );
+
+        }
+
+    }
+
+}
+
+
+function drawParticles() {
+
+    for (const p of particles) {
+
+        ctx.save();
+
+        ctx.globalAlpha =
+            Math.max(0, p.life);
+
+        ctx.fillStyle =
+            "white";
+
+        ctx.font =
+            "bold 15px Arial";
+
+        ctx.textAlign =
+            "center";
+
+        ctx.fillText(
+
+            p.text,
+
+            p.x - camera.x,
+
+            p.y - camera.y
+
+        );
+
+        ctx.restore();
+
+    }
+
+}
+
+
+/* =========================================================
+   JOYSTICK
+========================================================= */
+
+const joystick =
+    document.getElementById(
+        "joystick"
+    );
+
+const stick =
+    document.getElementById(
+        "stick"
+    );
+
+
+let joystickActive = false;
+
+let joystickX = 0;
+let joystickY = 0;
+
+const joystickRadius = 48;
+
+
+function updateJoystick(
+    clientX,
+    clientY
+) {
+
+    const rect =
+        joystick.getBoundingClientRect();
+
+    const centerX =
+        rect.left +
+        rect.width / 2;
+
+    const centerY =
+        rect.top +
+        rect.height / 2;
+
+    let dx =
+        clientX - centerX;
+
+    let dy =
+        clientY - centerY;
+
+    const distance =
+        Math.sqrt(
+            dx * dx +
+            dy * dy
+        );
+
+    if (
+        distance >
+        joystickRadius
+    ) {
+
+        dx =
+            dx / distance *
+            joystickRadius;
+
+        dy =
+            dy / distance *
+            joystickRadius;
+
+    }
+
+    joystickX =
+        dx / joystickRadius;
+
+    joystickY =
+        dy / joystickRadius;
+
+    stick.style.transform =
+        `translate(${dx}px, ${dy}px)`;
+
+}
+
+
+function resetJoystick() {
+
+    joystickActive =
+        false;
+
+    joystickX = 0;
+    joystickY = 0;
+
+    stick.style.transform =
+        "translate(0px, 0px)";
+
+}
+
+
+/* =========================================================
+   JOYSTICK TOUCH
+========================================================= */
+
+joystick.addEventListener(
+    "touchstart",
+    function(e) {
+
+        e.preventDefault();
+
+        joystickActive =
+            true;
+
+        const touch =
+            e.touches[0];
+
+        updateJoystick(
+            touch.clientX,
+            touch.clientY
+        );
+
+    },
+    { passive: false }
+);
+
+
+joystick.addEventListener(
+    "touchmove",
+    function(e) {
+
+        e.preventDefault();
+
+        if (!joystickActive)
+            return;
+
+        const touch =
+            e.touches[0];
+
+        updateJoystick(
+            touch.clientX,
+            touch.clientY
+        );
+
+    },
+    { passive: false }
+);
+
+
+joystick.addEventListener(
+    "touchend",
+    function(e) {
+
+        e.preventDefault();
+
+        resetJoystick();
+
+    },
+    { passive: false }
+);
+
+
+/* =========================================================
+   ATTACK BUTTON
+========================================================= */
+
+const attackButton =
+    document.getElementById(
+        "attackButton"
+    );
+
+
+attackButton.addEventListener(
+    "touchstart",
+    function(e) {
+
+        e.preventDefault();
+
+        attackButton.classList.add(
+            "pressed"
+        );
+
+        attack();
+
+    },
+    { passive: false }
+);
+
+
+attackButton.addEventListener(
+    "touchend",
+    function(e) {
+
+        e.preventDefault();
+
+        attackButton.classList.remove(
+            "pressed"
+        );
+
+    },
+    { passive: false }
+);
+
+
+/* =========================================================
+   ATTACK FUNCTION
+========================================================= */
+
+function attack() {
+
+    if (player.dead)
+        return;
+
+    if (
+        player.attackCooldown >
+        0
+    )
+        return;
+
+    player.attackCooldown =
+        350;
+
+    player.flash =
+        0.10;
+
+
+    if (!hell.alive)
+        return;
+
+
+    const dx =
+        hell.x - player.x;
+
+    const dy =
+        hell.y - player.y;
+
+    const distance =
+        Math.sqrt(
+            dx * dx +
+            dy * dy
+        );
+
+
+    if (
+        distance <=
+        player.attackRange
+    ) {
+
+        /*
+           Every hit deals exactly 1 damage.
+        */
+
+        hell.hp -= 1;
+
+        hell.flash =
+            0.18;
+
+        hell.shake =
+            8;
+
+        damageParticle(
+            hell.x,
+            hell.y,
+            1
+        );
+
+
+        if (
+            hell.hp <= 0
+        ) {
+
+            hell.hp = 0;
+
+            killHell();
+
+        }
+
+    }
+
+}
+
+
+/* =========================================================
+   KILL HELL
+========================================================= */
+
+function killHell() {
+
+    hell.alive =
+        false;
+
+    /*
+       Drop flesh meat.
+    */
+
+    meatDrops.push({
+
+        x: hell.x,
+
+        y: hell.y,
+
+        rotation:
+            random(
+                -0.3,
+                0.3
+            )
+
+    });
+
+
+    document.getElementById(
+        "message"
+    ).textContent =
+        "Flesh Meat dropped!";
+
+    document.getElementById(
+        "victory"
+    ).style.display =
+        "block";
+
+}
+
+
+/* =========================================================
+   PLAYER UPDATE
+========================================================= */
+
+function updatePlayer(delta) {
+
+    if (player.dead)
+        return;
+
+
+    if (
+        player.attackCooldown >
+        0
+    ) {
+
+        player.attackCooldown -=
+            delta;
+
+    }
+
+
+    player.x +=
+        joystickX *
+        player.speed;
+
+    player.y +=
+        joystickY *
+        player.speed;
+
+
+    /*
+       Keep player inside world.
+    */
+
+    player.x =
+        Math.max(
+            30,
+            Math.min(
+                WORLD_WIDTH - 30,
+                player.x
+            )
+        );
+
+    player.y =
+        Math.max(
+            30,
+            Math.min(
+                WORLD_HEIGHT - 30,
+                player.y
+            )
+        );
+
+}
+
+
+/* =========================================================
+   HELL AI
+========================================================= */
+
+function updateHell(delta) {
+
+    if (!hell.alive)
+        return;
+
+    if (
+        hell.attackCooldown >
+        0
+    ) {
+
+        hell.attackCooldown -=
+            delta;
+
+    }
+
+
+    const dx =
+        player.x - hell.x;
+
+    const dy =
+        player.y - hell.y;
+
+    const distance =
+        Math.sqrt(
+            dx * dx +
+            dy * dy
+        );
+
+
+    /*
+       Chase player.
+
+       Hell speed = 4.1
+       Player speed = 3.2
+    */
+
+    if (
+        distance >
+        hell.attackRange
+    ) {
+
+        hell.x +=
+            (dx / distance) *
+            hell.speed;
+
+        hell.y +=
+            (dy / distance) *
+            hell.speed;
+
+    }
+
+
+    /*
+       Attack player.
+    */
+
+    if (
+        distance <=
+        hell.attackRange &&
+        hell.attackCooldown <= 0
+    ) {
+
+        hell.attackCooldown =
+            800;
+
+        player.hp -=
+            hell.damage;
+
+        player.hp =
+            Math.max(
+                0,
+                player.hp
+            );
+
+        player.flash =
+            0.2;
+
+        player.shake =
+            8;
+
+        damageParticle(
+            player.x,
+            player.y,
+            hell.damage
+        );
+
+
+        if (
+            player.hp <= 0
+        ) {
+
+            player.dead =
+                true;
+
+            document.getElementById(
+                "gameOver"
+            ).style.display =
+                "flex";
+
+        }
+
+    }
+
+}
+
+
+/* =========================================================
+   EFFECTS
+========================================================= */
+
+function updateEffects() {
+
+    if (
+        player.flash >
+        0
+    ) {
+
+        player.flash -=
+            0.016;
+
+    }
+
+
+    if (
+        hell.flash >
+        0
+    ) {
+
+        hell.flash -=
+            0.016;
+
+    }
+
+
+    if (
+        player.shake >
+        0
+    ) {
+
+        player.shake *=
+            0.85;
+
+    }
+
+
+    if (
+        hell.shake >
+        0
+    ) {
+
+        hell.shake *=
+            0.85;
+
+    }
+
+}/* =========================================================
+   CAMERA
+========================================================= */
+
+function updateCamera() {
+
+    camera.x =
+        player.x - W / 2;
+
+    camera.y =
+        player.y - H / 2;
+
+
+    /*
+       Keep camera inside world.
+    */
+
+    camera.x =
+        Math.max(
+            0,
+            Math.min(
+                WORLD_WIDTH - W,
+                camera.x
+            )
+        );
+
+    camera.y =
+        Math.max(
+            0,
+            Math.min(
+                WORLD_HEIGHT - H,
+                camera.y
+            )
+        );
+
+}
+
+
+/* =========================================================
+   DRAW WORLD
+========================================================= */
+
+function drawWorld() {
+
+    /*
+       Grass background
+    */
+
+    ctx.fillStyle =
+        "#5f9f48";
+
+    ctx.fillRect(
+        0,
+        0,
+        W,
+        H
+    );
+
+
+    /*
+       Small grass pattern
+    */
+
+    ctx.globalAlpha =
+        0.12;
+
+    ctx.strokeStyle =
+        "#315c2a";
+
+    ctx.lineWidth =
+        1;
+
+    const grid =
+        40;
+
+
+    for (
+        let x =
+            -camera.x % grid;
+
+        x < W;
+
+        x += grid
+    ) {
+
+        ctx.beginPath();
+
+        ctx.moveTo(
+            x,
+            0
+        );
+
+        ctx.lineTo(
+            x,
+            H
+        );
+
+        ctx.stroke();
+
+    }
+
+
+    for (
+        let y =
+            -camera.y % grid;
+
+        y < H;
+
+        y += grid
+    ) {
+
+        ctx.beginPath();
+
+        ctx.moveTo(
+            0,
+            y
+        );
+
+        ctx.lineTo(
+            W,
+            y
+        );
+
+        ctx.stroke();
+
+    }
+
+
+    ctx.globalAlpha =
+        1;
+
+
+    /*
+       Hills
+    */
+
+    for (
+        const hill of hills
+    ) {
+
+        const x =
+            hill.x - camera.x;
+
+        const y =
+            hill.y - camera.y;
+
+
+        /*
+           Skip hills far outside screen.
+        */
+
+        if (
+            x < -hill.width ||
+            x > W + hill.width ||
+            y < -hill.height ||
+            y > H + hill.height
+        ) {
+
+            continue;
+
+        }
+
+
+        ctx.save();
+
+        ctx.translate(
+            x,
+            y
+        );
+
+
+        /*
+           Hill shadow
+        */
+
+        ctx.fillStyle =
+            "rgba(0,0,0,0.15)";
+
+        ctx.beginPath();
+
+        ctx.ellipse(
+            5,
+            10,
+            hill.width / 2,
+            hill.height / 2,
+            0,
+            0,
+            Math.PI * 2
+        );
+
+        ctx.fill();
+
+
+        /*
+           Hill gradient
+        */
+
+        const gradient =
+            ctx.createLinearGradient(
+                0,
+                -hill.height / 2,
+                0,
+                hill.height / 2
+            );
+
+        gradient.addColorStop(
+            0,
+            "#91c968"
+        );
+
+        gradient.addColorStop(
+            0.55,
+            "#65a84c"
+        );
+
+        gradient.addColorStop(
+            1,
+            "#3e7836"
+        );
+
+
+        ctx.fillStyle =
+            gradient;
+
+
+        ctx.beginPath();
+
+        ctx.ellipse(
+            0,
+            0,
+            hill.width / 2,
+            hill.height / 2,
+            0,
+            0,
+            Math.PI * 2
+        );
+
+        ctx.fill();
+
+
+        /*
+           Little highlight on top
+        */
+
+        ctx.globalAlpha =
+            0.2;
+
+        ctx.fillStyle =
+            "#d4efaa";
+
+        ctx.beginPath();
+
+        ctx.ellipse(
+            -20,
+            -25,
+            hill.width / 4,
+            hill.height / 6,
+            0,
+            0,
+            Math.PI * 2
+        );
+
+        ctx.fill();
+
+
+        ctx.restore();
+
+    }
+
+
+    /*
+       Trees
+    */
+
+    for (
+        const tree of trees
+    ) {
+
+        const x =
+            tree.x - camera.x;
+
+        const y =
+            tree.y - camera.y;
+
+
+        if (
+            x < -70 ||
+            x > W + 70 ||
+            y < -100 ||
+            y > H + 100
+        ) {
+
+            continue;
+
+        }
+
+
+        ctx.save();
+
+
+        /*
+           Tree shadow
+        */
+
+        ctx.fillStyle =
+            "rgba(0,0,0,0.2)";
+
+        ctx.beginPath();
+
+        ctx.ellipse(
+            x,
+            y + 17,
+            tree.size,
+            tree.size / 2.6,
+            0,
+            0,
+            Math.PI * 2
+        );
+
+        ctx.fill();
+
+
+        /*
+           Trunk
+        */
+
+        ctx.fillStyle =
+            "#70452a";
+
+        ctx.fillRect(
+            x - 6,
+            y - 14,
+            12,
+            30
+        );
+
+
+        /*
+           Leaves
+        */
+
+        ctx.fillStyle =
+            "#276b32";
+
+        ctx.beginPath();
+
+        ctx.arc(
+            x,
+            y - 27,
+            tree.size,
+            0,
+            Math.PI * 2
+        );
+
+        ctx.fill();
+
+
+        /*
+           Leaf highlight
+        */
+
+        ctx.fillStyle =
+            "#3f873f";
+
+        ctx.beginPath();
+
+        ctx.arc(
+            x - 8,
+            y - 35,
+            tree.size * 0.45,
+            0,
+            Math.PI * 2
+        );
+
+        ctx.fill();
+
+
+        ctx.restore();
+
+    }
+
+
+    /*
+       Rocks
+    */
+
+    for (
+        const rock of rocks
+    ) {
+
+        const x =
+            rock.x - camera.x;
+
+        const y =
+            rock.y - camera.y;
+
+
+        if (
+            x < -40 ||
+            x > W + 40 ||
+            y < -40 ||
+            y > H + 40
+        ) {
+
+            continue;
+
+        }
+
+
+        /*
+           Rock shadow
+        */
+
+        ctx.fillStyle =
+            "rgba(0,0,0,0.2)";
+
+        ctx.beginPath();
+
+        ctx.ellipse(
+            x + 3,
+            y + 5,
+            rock.size,
+            rock.size * 0.65,
+            0,
+            0,
+            Math.PI * 2
+        );
+
+        ctx.fill();
+
+
+        /*
+           Rock
+        */
+
+        ctx.fillStyle =
+            "#777";
+
+        ctx.beginPath();
+
+        ctx.ellipse(
+            x,
+            y,
+            rock.size,
+            rock.size * 0.7,
+            -0.15,
+            0,
+            Math.PI * 2
+        );
+
+        ctx.fill();
+
+
+        /*
+           Rock highlight
+        */
+
+        ctx.fillStyle =
+            "#999";
+
+        ctx.beginPath();
+
+        ctx.ellipse(
+            x - rock.size * 0.25,
+            y - rock.size * 0.2,
+            rock.size * 0.45,
+            rock.size * 0.22,
+            -0.15,
+            0,
+            Math.PI * 2
+        );
+
+        ctx.fill();
+
+    }
+
+}
+
+
+/* =========================================================
+   DRAW MEAT
+========================================================= */
+
+function drawMeat() {
+
+    for (
+        const meat of meatDrops
+    ) {
+
+        const x =
+            meat.x - camera.x;
+
+        const y =
+            meat.y - camera.y;
+
+
+        ctx.save();
+
+        ctx.translate(
+            x,
+            y
+        );
+
+        ctx.rotate(
+            meat.rotation
+        );
+
+
+        /*
+           Shadow
+        */
+
+        ctx.fillStyle =
+            "rgba(0,0,0,0.25)";
+
+        ctx.beginPath();
+
+        ctx.ellipse(
+            0,
+            8,
+            22,
+            7,
+            0,
+            0,
+            Math.PI * 2
+        );
+
+        ctx.fill();
+
+
+        /*
+           Meat pieces
+        */
+
+        ctx.fillStyle =
+            "#c9574c";
+
+        ctx.beginPath();
+
+        ctx.arc(
+            -8,
+            0,
+            10,
+            0,
+            Math.PI * 2
+        );
+
+        ctx.arc(
+            8,
+            0,
+            10,
+            0,
+            Math.PI * 2
+        );
+
+        ctx.fill();
+
+
+        /*
+           Meat center
+        */
+
+        ctx.fillStyle =
+            "#ef9a83";
+
+        ctx.beginPath();
+
+        ctx.arc(
+            0,
+            -4,
+            5,
+            0,
+            Math.PI * 2
+        );
+
+        ctx.fill();
+
+
+        /*
+           Bone
+        */
+
+        ctx.strokeStyle =
+            "#f4e0b0";
+
+        ctx.lineWidth =
+            4;
+
+        ctx.beginPath();
+
+        ctx.moveTo(
+            -15,
+            -3
+        );
+
+        ctx.lineTo(
+            15,
+            4
+        );
+
+        ctx.stroke();
+
+
+        ctx.restore();
+
+    }
+
+}
+
+
+/* =========================================================
+   DRAW PLAYER
+========================================================= */
+
+function drawPlayer() {
+
+    let shakeX = 0;
+    let shakeY = 0;
+
+
+    if (
+        player.shake > 0
+    ) {
+
+        shakeX =
+            random(
+                -player.shake,
+                player.shake
+            );
+
+        shakeY =
+            random(
+                -player.shake,
+                player.shake
+            );
+
+    }
+
+
+    const x =
+        player.x -
+        camera.x +
+        shakeX;
+
+    const y =
+        player.y -
+        camera.y +
+        shakeY;
+
+
+    ctx.save();
+
+
+    /*
+       Player shadow
+    */
+
+    ctx.fillStyle =
+        "rgba(0,0,0,0.25)";
+
+    ctx.beginPath();
+
+    ctx.ellipse(
+        x,
+        y + 20,
+        19,
+        7,
+        0,
+        0,
+        Math.PI * 2
+    );
+
+    ctx.fill();
+
+
+    /*
+       Body
+    */
+
+    ctx.fillStyle =
+        player.flash > 0
+            ? "white"
+            : "#246bce";
+
+    ctx.beginPath();
+
+    ctx.arc(
+        x,
+        y,
+        player.radius,
+        0,
+        Math.PI * 2
+    );
+
+    ctx.fill();
+
+
+    /*
+       Head
+    */
+
+    ctx.fillStyle =
+        player.flash > 0
+            ? "white"
+            : "#f0b58c";
+
+    ctx.beginPath();
+
+    ctx.arc(
+        x,
+        y - 18,
+        12,
+        0,
+        Math.PI * 2
+    );
+
+    ctx.fill();
+
+
+    /*
+       Hair
+    */
+
+    if (
+        player.flash <= 0
+    ) {
+
+        ctx.fillStyle =
+            "#24180f";
+
+        ctx.beginPath();
+
+        ctx.arc(
+            x,
+            y - 23,
+            11,
+            Math.PI,
+            Math.PI * 2
+        );
+
+        ctx.fill();
+
+    }
+
+
+    /*
+       Eyes
+    */
+
+    if (
+        player.flash <= 0
+    ) {
+
+        ctx.fillStyle =
+            "#111";
+
+        ctx.beginPath();
+
+        ctx.arc(
+            x - 4,
+            y - 18,
+            1.5,
+            0,
+            Math.PI * 2
+        );
+
+        ctx.arc(
+            x + 4,
+            y - 18,
+            1.5,
+            0,
+            Math.PI * 2
+        );
+
+        ctx.fill();
+
+    }
+
+
+    ctx.restore();
+
+}
+
+
+/* =========================================================
+   DRAW TIER 1 HELL
+========================================================= */
+
+function drawHell() {
+
+    if (
+        !hell.alive
+    )
+        return;
+
+
+    let shakeX = 0;
+    let shakeY = 0;
+
+
+    if (
+        hell.shake > 0
+    ) {
+
+        shakeX =
+            random(
+                -hell.shake,
+                hell.shake
+            );
+
+        shakeY =
+            random(
+                -hell.shake,
+                hell.shake
+            );
+
+    }
+
+
+    const x =
+        hell.x -
+        camera.x +
+        shakeX;
+
+    const y =
+        hell.y -
+        camera.y +
+        shakeY;
+
+
+    ctx.save();
+
+
+    /*
+       Shadow
+    */
+
+    ctx.fillStyle =
+        "rgba(0,0,0,0.3)";
+
+    ctx.beginPath();
+
+    ctx.ellipse(
+        x,
+        y + 28,
+        27,
+        8,
+        0,
+        0,
+        Math.PI * 2
+    );
+
+    ctx.fill();
+
+
+    /*
+       Hell body
+    */
+
+    ctx.fillStyle =
+        hell.flash > 0
+            ? "white"
+            : "#641313";
+
+    ctx.beginPath();
+
+    ctx.arc(
+        x,
+        y,
+        hell.radius,
+        0,
+        Math.PI * 2
+    );
+
+    ctx.fill();
+
+
+    /*
+       Dark belly
+    */
+
+    if (
+        hell.flash <= 0
+    ) {
+
+        ctx.fillStyle =
+            "#3b0808";
+
+        ctx.beginPath();
+
+        ctx.ellipse(
+            x,
+            y + 8,
+            17,
+            15,
+            0,
+            0,
+            Math.PI * 2
+        );
+
+        ctx.fill();
+
+    }
+
+
+    /*
+       Horns
+    */
+
+    ctx.fillStyle =
+        hell.flash > 0
+            ? "white"
+            : "#260707";
+
+
+    ctx.beginPath();
+
+    ctx.moveTo(
+        x - 17,
+        y - 20
+    );
+
+    ctx.lineTo(
+        x - 31,
+        y - 44
+    );
+
+    ctx.lineTo(
+        x - 5,
+        y - 26
+    );
+
+    ctx.closePath();
+
+    ctx.fill();
+
+
+    ctx.beginPath();
+
+    ctx.moveTo(
+        x + 17,
+        y - 20
+    );
+
+    ctx.lineTo(
+        x + 31,
+        y - 44
+    );
+
+    ctx.lineTo(
+        x + 5,
+        y - 26
+    );
+
+    ctx.closePath();
+
+    ctx.fill();
+
+
+    /*
+       Eyes
+    */
+
+    if (
+        hell.flash <= 0
+    ) {
+
+        ctx.fillStyle =
+            "#ffdf00";
+
+        ctx.beginPath();
+
+        ctx.arc(
+            x - 9,
+            y - 5,
+            4,
+            0,
+            Math.PI * 2
+        );
+
+        ctx.arc(
+            x + 9,
+            y - 5,
+            4,
+            0,
+            Math.PI * 2
+        );
+
+        ctx.fill();
+
+
+        /*
+           Mouth
+        */
+
+        ctx.strokeStyle =
+            "#160000";
+
+        ctx.lineWidth =
+            3;
+
+        ctx.beginPath();
+
+        ctx.arc(
+            x,
+            y + 5,
+            10,
+            0,
+            Math.PI
+        );
+
+        ctx.stroke();
+
+    }
+
+
+    ctx.restore();
+
+}
+
+
+/* =========================================================
+   HELL HEALTH BAR
+========================================================= */
+
+function drawHellHealth() {
+
+    if (
+        !hell.alive
+    )
+        return;
+
+
+    const barWidth =
+        90;
+
+    const barHeight =
+        10;
+
+
+    const x =
+        hell.x -
+        camera.x -
+        barWidth / 2;
+
+    const y =
+        hell.y -
+        camera.y -
+        60;
+
+
+    /*
+       Background
+    */
+
+    ctx.fillStyle =
+        "rgba(0,0,0,0.7)";
+
+    ctx.fillRect(
+        x,
+        y,
+        barWidth,
+        barHeight
+    );
+
+
+    /*
+       Health
+    */
+
+    const hpPercent =
+        hell.hp /
+        hell.maxHp;
+
+
+    ctx.fillStyle =
+        "#e53935";
+
+    ctx.fillRect(
+        x,
+        y,
+        barWidth *
+        hpPercent,
+        barHeight
+    );
+
+
+    /*
+       Border
+    */
+
+    ctx.strokeStyle =
+        "white";
+
+    ctx.lineWidth =
+        1;
+
+    ctx.strokeRect(
+        x,
+        y,
+        barWidth,
+        barHeight
+    );
+
+
+    /*
+       HP text
+    */
+
+    ctx.fillStyle =
+        "white";
+
+    ctx.font =
+        "bold 11px Arial";
+
+    ctx.textAlign =
+        "center";
+
+    ctx.fillText(
+
+        "Tier 1 Hell  " +
+        hell.hp +
+        "/20",
+
+        hell.x - camera.x,
+
+        y - 5
+
+    );
+
+}
+
+
+/* =========================================================
+   PLAYER HP HUD
+========================================================= */
+
+function updatePlayerHUD() {
+
+    const bar =
+        document.getElementById(
+            "playerHPBar"
+        );
+
+    const text =
+        document.getElementById(
+            "playerHPText"
+        );
+
+
+    const percentage =
+        player.hp /
+        player.maxHp *
+        100;
+
+
+    bar.style.width =
+        percentage + "%";
+
+
+    text.textContent =
+        "HP: " +
+        player.hp +
+        " / " +
+        player.maxHp;
+
+}
+
+
+/* =========================================================
+   SORT OBJECTS BY Y
+========================================================= */
+
+function drawCharacters() {
+
+    /*
+       Draw meat first.
+    */
+
+    drawMeat();
+
+
+    /*
+       Draw characters.
+
+       In this simple version,
+       player and Hell are drawn
+       separately.
+    */
+
+    drawPlayer();
+
+    drawHell();
+
+}
+
+
+/* =========================================================
+   MAIN DRAW
+========================================================= */
+
+function draw() {
+
+    ctx.clearRect(
+        0,
+        0,
+        W,
+        H
+    );
+
+
+    drawWorld();
+
+    drawCharacters();
+
+    drawHellHealth();
+
+    drawParticles();
+
+
+    /*
+       Small attack range indicator
+       while button is being pressed.
+    */
+
+}
+
+
+/* =========================================================
+   GAME LOOP
+========================================================= */
+
+let lastTime =
+    performance.now();
+
+
+function gameLoop(
+    currentTime
+) {
+
+    const delta =
+        currentTime -
+        lastTime;
+
+    lastTime =
+        currentTime;
+
+
+    /*
+       Prevent giant time jumps.
+    */
+
+    const safeDelta =
+        Math.min(
+            delta,
+            50
+        );
+
+
+    updatePlayer(
+        safeDelta
+    );
+
+    updateHell(
+        safeDelta
+    );
+
+    updateParticles();
+
+    updateEffects();
+
+    updateCamera();
+
+    updatePlayerHUD();
+
+    draw();
+
+
+    requestAnimationFrame(
+        gameLoop
+    );
+
+}
+
+
+/* =========================================================
+   START GAME
+========================================================= */
+
+updateCamera();
+
+updatePlayerHUD();
+
+requestAnimationFrame(
+    gameLoop
+);
+
+</script>
+
+</body>
+</html>
